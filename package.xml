@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>sele_path_planner</name>
+  <version>0.1.0</version>
+  <description> Path planner for semantic-elevation map.</description>
+  <maintainer email="icecreamxwy@sjtu.edu.cn"> xwy</maintainer>
+  <license> BSD</license>
+  <author> xwy</author>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>message_filters</depend>
+  <depend>pcl_ros</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>grid_map_core</depend>
+  <depend>grid_map_ros</depend>
+  <depend>grid_map_msgs</depend>
+  <depend>kindr</depend>
+  <depend>kindr_ros</depend>
+  <depend>tf</depend>
+  <depend>tf_conversions</depend>
+  <depend>eigen_conversions</depend>
+  <depend>boost</depend>
+  <depend>eigen</depend>
+  <depend>elevation_mapping</depend>
+</package>

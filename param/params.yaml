@@ -1,0 +1,14 @@
+# max_turn_radius/resolution_step denotes when agv turns ?rad/m
+seleplanner/max_turn_radius: 0.31415
+#seleplanner/resolution_turn_radius: 0.0157
+#make this n_directions odd
+seleplanner/n_directions: 21
+seleplanner/resolution_step: 0.2
+seleplanner/dwa_total_steps: 10
+seleplanner/MAX_VX: 0.5
+seleplanner/MAX_RZ: 0.78
+seleplanner/dist_discount: 1.
+seleplanner/Dheight: 0.1
+seleplanner/type_factor: [1., 1., 1., 1., 1.]
+seleplanner/map_frame: slam
+seleplanner/base_frame: camera
