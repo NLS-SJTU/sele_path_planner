@@ -6,7 +6,7 @@ SEPlanner::SEPlanner(ros::NodeHandle &_n):nh(_n)
   , rob_ctrl(_n), order_hflrb(0), tfListener(tfBuffer)
   , lastvx(0.), lastrz(0.)
 {
-    rob_ctrl.move(0.,0.);
+    reset();
     readParam();
     initSubPub();
 //    for(int i_rad=0; i_rad<n_directions; ++i_rad){
@@ -24,6 +24,9 @@ SEPlanner::~SEPlanner(){
 
 void SEPlanner::orderandGo(){
     Eigen::Vector3d target_pos;
+    if(moving_flag){
+        rob_ctrl.move(movecmd[0], movecmd[1]);
+    }
     if(order_hflrb == 0){return;}
     else{
         fromOrderToTarget(order_hflrb, target_pos);
@@ -31,7 +34,9 @@ void SEPlanner::orderandGo(){
     // find path with ??
     double vx = 0., rz = 0.;
     simpleDWA(target_pos, vx, rz);
-    rob_ctrl.move(vx, rz);
+    if(!test_flag){
+        rob_ctrl.move(vx, rz);
+    }
 }
 
 void SEPlanner::reset(){
@@ -39,6 +44,8 @@ void SEPlanner::reset(){
     rob_ctrl.move(0.,0.);
     lastvx = 0;
     lastrz = 0;
+    movecmd[0] = 0;
+    movecmd[1] = 0;
 }
 
 void SEPlanner::readParam(){
@@ -134,9 +141,7 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
     double turn_rad = (best_i_rad * resolution_turn_radius - max_turn_radius) / resolution_step,
            go_m = best_i_step * resolution_step;
     pubDWAPath(best_i_rad, best_i_step);
-    if(!test_flag){
-        calCmd(vx, rz, turn_rad, go_m);
-    }
+    calCmd(vx, rz, turn_rad, go_m);
     // ROS_INFO("DWA END");
 }
 
@@ -360,10 +365,15 @@ void SEPlanner::joyCB(const sensor_msgs::JoyConstPtr &msg){
         order_hflrb = 1;
     }
     else if(fabs(msg->axes[1]) > 0.05 || fabs(msg->axes[3]) > 0.05){
-        rob_ctrl.move(msg->axes[1], msg->axes[3]);
+        movecmd[0] = msg->axes[1] * MAX_VX;
+        movecmd[1] = msg->axes[3] *MAX_RZ;
+        rob_ctrl.move(movecmd[0], movecmd[1]);
         moving_flag = true;
     }
     else if(moving_flag){
         rob_ctrl.move(0,0);
+        moving_flag = false;
+        movecmd[0] = 0;
+        movecmd[1] = 0;
     }
 }

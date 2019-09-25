@@ -45,7 +45,7 @@ private:
     tf2_ros::TransformListener tfListener;
 
     Pioneer3AT rob_ctrl;
-    double lastvx, lastrz;
+    double lastvx, lastrz, movecmd[2];
     bool moving_flag, test_flag;
 
     int order_hflrb;

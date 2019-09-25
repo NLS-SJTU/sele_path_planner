@@ -65,3 +65,13 @@ target_link_libraries(se_planner_node
     ${PCL_LIBRARY_DIRS}
     ${OpenCV_LIBS}
 )
+
+add_executable(savedata
+  src/savedata.cpp
+)
+
+target_link_libraries(savedata
+    ${catkin_LIBRARIES}
+    ${PCL_LIBRARY_DIRS}
+    ${OpenCV_LIBS}
+)

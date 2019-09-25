@@ -1,6 +1,6 @@
 <!---->
 <launch>
-  <param name="/use_sim_time" value="true" />
+  <!--param name="/use_sim_time" value="true" /-->
   <rosparam command="load" file="$(find sele_path_planner)/param/params.yaml"/>
   <node name="sele_planner" pkg="sele_path_planner" type="se_planner_node" output="screen">
     <remap from="semantic_map" to="semantic_map"/>
