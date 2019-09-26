@@ -194,7 +194,7 @@ int SEPlanner::scorePosiblePath(double& score, Eigen::Vector3d target, geometry_
     // ROS_INFO("localframe tar(%f,%f), end(%f,%f)(%i,%i)",target[0], target[1], dwa_path_points[i_rad][step][0],dwa_path_points[i_rad][step][1],i_rad,step);
     double dist = sqrt(pow((target[0]-dwa_path_points[i_rad][step][0]),2) + pow((target[1]-dwa_path_points[i_rad][step][1]),2));
     score = step_discount * step * resolution_step - dist_discount * dist - totalcost;  //to be confirmed
-//    ROS_INFO("score of rad %i, step %i, dist %f, movecost %f, score %f",i_rad, step,dist, totalcost, score);
+    //ROS_INFO("score of rad %i, step %i, dist %f, movecost %f, score %f",i_rad, step,dist, totalcost, score);
     return step;
 }
 
@@ -244,6 +244,7 @@ bool SEPlanner::calStepCost(double& cost, grid_map::Position last_pos, grid_map:
         return false;
     }
     //to be confirmed
+    //cout<<"prob2:"<<pro_2<<",segtype_2:"<<segtype_2<<",dh:"<<dh<<endl;
     cost = (2 - pro_2) * (height_factor*dh + resolution_step) * type_factor[segtype_2];
     return true;
 }
@@ -296,10 +297,11 @@ void SEPlanner::getInfoFromGM(grid_map::Position pos, double& height, int& segty
     }
 //    cout<<"pos:"<<pos[0]<<","<<pos[1]<<", height:"<<height<<endl;
     //get label and prob from semantic map
+    //cout<<"labelexist:"<<semantic_GM.exists("label")<<",index:"<<semantic_GM.getIndex(pos,ind)<<endl;
     if(semantic_GM.exists("label") && semantic_GM.getIndex(pos,ind)){
         segtype = semantic_GM.at("label", ind);
         prob = semantic_GM.at("prob", ind);
-        cout<<"segtype:"<<segtype<<",prob:"<<prob<<endl;
+        //cout<<"segtype:"<<segtype<<",prob:"<<prob<<endl;
         if(isnan(segtype) || isnan(prob) || !(segtype>=0 && segtype<type_factor.size())){
             segtype = 3; //to be confirmed
             prob = 0;
@@ -307,7 +309,7 @@ void SEPlanner::getInfoFromGM(grid_map::Position pos, double& height, int& segty
     }
     else{
         segtype = 0; //set to other type, to be confirmed
-        prob = 1 / type_factor.size();
+        prob = 1. / type_factor.size();
     }
 //    cout<<"semantic:"<<segtype<<",pro:"<<prob<<endl;
     //segtype = 1;//for debug

@@ -2,9 +2,9 @@
 <launch>
   <node name="savedata" pkg="sele_path_planner" type="savedata" output="screen">
     <param name="writepath" value="$(find sele_path_planner)/data/"/>
-    <remap from="semantic_map" to="semantic_map"/>
-    <remap from="elevation_map" to="elevation_mapping/elevation_map_raw"/>
-    <remap from="image" to="sensors/stereo_cam/left/image_rect_color/compressed"/>
-    <remap from="pointcloud" to="sensors/lidar/points"/>
+    <remap from="semantic_map" to="/semantic/grid_map"/>
+    <remap from="elevation_map" to="/elevation_mapping/elevation_map_raw"/>
+    <remap from="image" to="/sensors/stereo_cam/left/image_rect_color/compressed"/>
+    <remap from="pointcloud" to="/sensors/lidar/points"/>
   </node>
 </launch>

@@ -33,12 +33,12 @@ public:
     datasaver(ros::NodeHandle &_n):nh(_n){
         semap_sub = nh.subscribe("/semantic_map", 1, &datasaver::semanticMapCB, this);
         elemap_sub = nh.subscribe("/elevation_map", 1, &datasaver::elevationMapCB, this);
-        img_sub = nh.subscribe("/image", 1, &datasaver::imageCB, this);
-        pcl_sub = nh.subscribe("/pointcloud", 1, &datasaver::pclCB, this);
+        img_sub = nh.subscribe("image", 1, &datasaver::imageCB, this);
+        pcl_sub = nh.subscribe("pointcloud", 1, &datasaver::pclCB, this);
         nh.param("savedata/writepath", writepath, string("data"));
 //        pclfrommsg = new pcl::PointCloud<pcl::PointXYZ>;
     }
-    ~datasaver(){cv::destroyWindow("image");}
+    ~datasaver(){cv::destroyWindow("save_image");}
 private:
     ros::NodeHandle nh;
     ros::Subscriber semap_sub, elemap_sub, img_sub, pcl_sub;
@@ -59,8 +59,29 @@ private:
             //output_file0.close();
             elevation_GM.add("res");
             cv::Mat elevation;
+            //writepath = "/home/yimo/catkin_ws_isolated/src/sele_path_planner/data/";
             grid_map::GridMapCvConverter::toImage<float, 1>(elevation_GM, "elevation", CV_32FC1, -2.0, 2.0, elevation);
             cv::imwrite(writepath+"elevation.png", elevation);
+            ofstream ofs(writepath+"elemap.txt");
+            std::cout<<elevation<<endl;
+            for(int row = 0;row<elevation.rows;row++){
+                for(int col = 0;col<elevation.cols;col++){
+                    ofs<<(elevation.ptr<float>(elevation.rows-1 - row)[col])<<" ";
+                }
+                ofs<<"\n";
+            }
+
+//            cv::Mat res_road;
+//            grid_map::GridMapCvConverter::toImage<float, 1>(semantic_GM, "prob", CV_32FC1, 0.0, 1.0, res_road);
+//            cv::imwrite(writepath+"prob.png", res_road);
+//            ofstream ofs_res_road(writepath+"prob.txt");
+//            for(int row = 0;row<elevation.rows;row++){
+//                for(int col = 0;col<elevation.cols;col++){
+//                    ofs_res_road<<(elevation.ptr<float>(row)[col])<<" ";
+//                }
+//                ofs_res_road<<"\n";
+//            }
+
             for (grid_map::GridMapIterator iterator(elevation_GM); !iterator.isPastEnd(); ++iterator) {
                 const grid_map::Index imageIndex(iterator.getUnwrappedIndex());
                 elevation_GM.at("res",*iterator) = elevation.ptr<float>(imageIndex(0))[imageIndex(1)];
@@ -69,9 +90,10 @@ private:
             //for (grid_map::GridMapIterator iterator(elevation_GM); !iterator.isPastEnd(); ++iterator) {
             //    ofs<< elevation_GM.at("elevation",*iterator)<<endl;
             //}
-            ofstream ofs(writepath+"elemap.txt");
-            ofs<<elevation_GM["res"];
+
+            //ofs<<elevation_GM["res"];
             ofs.close();
+            //ofs_res_road.close();
             ROS_INFO("save elevation done.");
         }
         else{
@@ -107,7 +129,7 @@ private:
     void imageCB(const sensor_msgs::CompressedImageConstPtr &msg){
         cv::Mat imginput = cv::imdecode(cv::Mat(msg->data),1);
 //        cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::BGR8);
-        cv::imshow("image", imginput);
+        cv::imshow("save_image", imginput);
         int keyint = cv::waitKey(5);
         if(keyint != -1){
             savedata(imginput);
