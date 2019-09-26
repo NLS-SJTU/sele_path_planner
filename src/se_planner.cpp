@@ -61,6 +61,7 @@ void SEPlanner::readParam(){
     nh.param("seleplanner/base_frame", base_frame, string("base_link"));
     nh.param("seleplanner/step_discount", step_discount, 1.0);
     nh.param("seleplanner/test_flag", test_flag, false);
+    nh.param("seleplanner/height_factor", height_factor, 1.0);
     resolution_turn_radius = 2 * max_turn_radius / (n_directions - 1);
     //prepare points for dwa
     Eigen::Vector2d tmpP;
@@ -93,19 +94,19 @@ void SEPlanner::initSubPub(){
 
 void SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
     if(order == 1){
-        target[0] = 10;
+        target[0] = 5;
         target[1] = 0;
     }
     else if(order == 2){
-        target[0] = 10;
-        target[1] = 7;
+        target[0] = 5;
+        target[1] = 3;
     }
     else if(order == 3){
-        target[0] = 10;
-        target[1] = -7;
+        target[0] = 5;
+        target[1] = -3;
     }
     else if(order == 4){
-        target[0] = -10;
+        target[0] = -5;
         target[1] = 0;
     }
 }
@@ -243,7 +244,7 @@ bool SEPlanner::calStepCost(double& cost, grid_map::Position last_pos, grid_map:
         return false;
     }
     //to be confirmed
-    cost = (2 - pro_2) * (dh+resolution_step) * type_factor[segtype_2];
+    cost = (2 - pro_2) * (height_factor*dh + resolution_step) * type_factor[segtype_2];
     return true;
 }
 

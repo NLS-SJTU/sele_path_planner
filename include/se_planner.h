@@ -53,7 +53,7 @@ private:
     vector<vector<Eigen::Vector2d> > dwa_path_points; //in base frame, first direction,second forward
 
     //params
-    double max_turn_radius, resolution_turn_radius, Dheight,
+    double max_turn_radius, resolution_turn_radius, Dheight, height_factor,
         MAX_VX, MAX_RZ, resolution_step, dist_discount, step_discount;
     int dwa_total_steps, n_directions;
     vector<double> type_factor;
