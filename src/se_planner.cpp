@@ -298,7 +298,8 @@ void SEPlanner::getInfoFromGM(grid_map::Position pos, double& height, int& segty
     if(semantic_GM.exists("label") && semantic_GM.getIndex(pos,ind)){
         segtype = semantic_GM.at("label", ind);
         prob = semantic_GM.at("prob", ind);
-        if(isnan(segtype) || isnan(prob)){
+        cout<<"segtype:"<<segtype<<",prob:"<<prob<<endl;
+        if(isnan(segtype) || isnan(prob) || !(segtype>=0 && segtype<type_factor.size())){
             segtype = 3; //to be confirmed
             prob = 0;
         }
