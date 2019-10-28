@@ -17,10 +17,12 @@ path planner for semantic-elevation map
 
 #include <ros/ros.h>
 #include <tf2_ros/transform_listener.h>
+#include <tf2_ros/transform_broadcaster.h>
 #include <tf2_eigen/tf2_eigen.h>
 #include <std_msgs/Int16.h>
 #include <nav_msgs/Path.h>
 #include <sensor_msgs/Joy.h>
+#include <geometry_msgs/PointStamped.h>
 
 #include <grid_map_core/GridMap.hpp>
 #include <grid_map_ros/GridMapRosConverter.hpp>
@@ -39,16 +41,19 @@ public:
 
 private:
     ros::NodeHandle nh;
-    ros::Subscriber semap_sub, elemap_sub, order_sub, joy_sub;
+    ros::Subscriber semap_sub, elemap_sub, order_sub, joy_sub, target_sub;
     ros::Publisher path_pub;
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener;
+    tf2_ros::TransformBroadcaster tfBroadcaster;
 
     Pioneer3AT rob_ctrl;
     double lastvx, lastrz, movecmd[2];
     bool moving_flag, test_flag;
 
-    int order_hflrb;
+    int order_hflrb;  //0:hold, 1:forward, 2:left, 3:right, 4:backward, 5:settarget
+    Eigen::Vector3d target_map;
+    geometry_msgs::TransformStamped tf_self_map;
     grid_map::GridMap semantic_GM, elevation_GM;
     vector<vector<Eigen::Vector2d> > dwa_path_points; //in base frame, first direction,second forward
 
@@ -57,7 +62,7 @@ private:
         MAX_VX, MAX_RZ, resolution_step, dist_discount, step_discount;
     int dwa_total_steps, n_directions;
     vector<double> type_factor;
-    string map_frame, base_frame;
+    string map_frame, base_frame, target_frame;
 
     void readParam();
     void initSubPub();
@@ -80,6 +85,8 @@ private:
     void semanticMapCB(const grid_map_msgs::GridMapConstPtr &msg);
     void orderCB(const std_msgs::Int16ConstPtr &msg);
     void joyCB(const sensor_msgs::JoyConstPtr &msg);
+    void targetCB(const geometry_msgs::PoseConstPtr &msg);
+    void poseCB(const geometry_msgs::PoseStamped::ConstPtr &_msg);
 };
 
 #endif

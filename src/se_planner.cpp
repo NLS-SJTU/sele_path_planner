@@ -42,6 +42,7 @@ void SEPlanner::orderandGo(){
 void SEPlanner::reset(){
     ROS_INFO("[SEPLANNER]reset");
     rob_ctrl.move(0.,0.);
+    order_hflrb = 0;
     lastvx = 0;
     lastrz = 0;
     movecmd[0] = 0;
@@ -59,6 +60,7 @@ void SEPlanner::readParam(){
     nh.param("seleplanner/Dheight", Dheight, 0.1);
     nh.param("seleplanner/map_frame", map_frame, string("slam"));
     nh.param("seleplanner/base_frame", base_frame, string("base_link"));
+    nh.param("seleplanner/target_frame", target_frame, string("target"));
     nh.param("seleplanner/step_discount", step_discount, 1.0);
     nh.param("seleplanner/test_flag", test_flag, false);
     nh.param("seleplanner/height_factor", height_factor, 1.0);
@@ -89,10 +91,21 @@ void SEPlanner::initSubPub(){
     elemap_sub = nh.subscribe("/elevation_map", 1, &SEPlanner::elevationMapCB, this);
     order_sub = nh.subscribe("/se_order", 1, &SEPlanner::orderCB, this);
     joy_sub = nh.subscribe("/joy", 1, &SEPlanner::joyCB, this);
+    target_sub = nh.subscribe("/targetP", 1, &SEPlanner::targetCB, this);
     path_pub = nh.advertise<nav_msgs::Path>("/dwa_path", 1);
 }
 
 void SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
+    geometry_msgs::TransformStamped tf_map_self;
+    try{
+      tf_self_map = tfBuffer.lookupTransform(map_frame, base_frame, ros::Time(0));
+      tf_map_self = tfBuffer.lookupTransform(base_frame, map_frame, ros::Time(0));
+    }
+    catch (tf2::TransformException &ex) {
+      ROS_WARN("%s",ex.what());
+      ros::Duration(1.0).sleep();
+      return;
+    }
     if(order == 1){
         target[0] = 5;
         target[1] = 0;
@@ -109,28 +122,25 @@ void SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
         target[0] = -5;
         target[1] = 0;
     }
+    else if(order == 5){
+        tf2::doTransform(target_map, target, tf_map_self);
+//        cout<<target<<";\n";
+    }
 }
 
 //target in base frame
 void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
     // ROS_INFO("DWA START");
     // get pose from latest tf
-    geometry_msgs::TransformStamped transformStamped;
-    try{
-      transformStamped = tfBuffer.lookupTransform(map_frame, base_frame, ros::Time(0));
-    }
-    catch (tf2::TransformException &ex) {
-      ROS_WARN("%s",ex.what());
-      ros::Duration(1.0).sleep();
-      return;
-    }
+//    geometry_msgs::TransformStamped transformStamped;
+
     // ROS_INFO("score all path");
     // score all posible path
     double highest_score = -100, score;
     int best_i_rad = -1, best_i_step, step;
     for(int i_rad=0; i_rad<n_directions; ++i_rad){
         score = 0;
-        step = scorePosiblePath(score, target, transformStamped, i_rad);
+        step = scorePosiblePath(score, target, tf_self_map, i_rad);
         // ROS_INFO("rad %i score is %f",i_rad,score);
         if(highest_score < score){
             highest_score = score;
@@ -384,4 +394,29 @@ void SEPlanner::joyCB(const sensor_msgs::JoyConstPtr &msg){
         movecmd[0] = 0;
         movecmd[1] = 0;
     }
+}
+
+void SEPlanner::targetCB(const geometry_msgs::PoseConstPtr &msg){
+    // pub local target to tf map frame
+    // in fact, this should be done by the publisher of local target
+    geometry_msgs::TransformStamped transformStamped;
+    try{
+      transformStamped = tfBuffer.lookupTransform(map_frame, base_frame, ros::Time(0));
+    }
+    catch (tf2::TransformException &ex) {
+      ROS_WARN("%s",ex.what());
+      ros::Duration(1.0).sleep();
+      return;
+    }
+    Eigen::Vector3d pos_base;
+    pos_base[0] = msg->position.x;
+    pos_base[1] = msg->position.y;
+    pos_base[2] = msg->position.z;
+    tf2::doTransform(pos_base, target_map, transformStamped);
+//    transformStamped.transform.translation.x = pos_map[0];
+//    transformStamped.transform.translation.y = pos_map[1];
+//    transformStamped.transform.translation.z = pos_map[2];
+//    transformStamped.child_frame_id = target_frame;
+//    tfBroadcaster.sendTransform(transformStamped);
+    order_hflrb = 5;
 }

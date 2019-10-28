@@ -5,6 +5,7 @@
   <node name="sele_planner" pkg="sele_path_planner" type="se_planner_node" output="screen">
     <remap from="semantic_map" to="semantic/grid_map"/>
     <remap from="elevation_map" to="elevation_mapping/elevation_map"/>
+    <remap from="targetP" to="targetP"/>
   </node>
   <node name="joynode" pkg="joy" type="joy_node"/>
 </launch>
