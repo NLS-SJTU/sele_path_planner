@@ -4,7 +4,7 @@ using namespace std;
 
 SEPlanner::SEPlanner(ros::NodeHandle &_n):nh(_n)
   , rob_ctrl(_n), order_hflrb(0), tfListener(tfBuffer)
-  , lastvx(0.), lastrz(0.)
+  , lastvx(0.), lastrz(0.), moving_flag(false), showdwa(false)
 {
     reset();
     readParam();
@@ -25,17 +25,17 @@ SEPlanner::~SEPlanner(){
 void SEPlanner::orderandGo(){
     Eigen::Vector3d target_pos;
     if(moving_flag){
+//        cout<<"movebyhand:"<<movecmd[0]<<","<<movecmd[1]<<endl;
         rob_ctrl.move(movecmd[0], movecmd[1]);
     }
-    if(order_hflrb == 0){return;}
-    else{
-        fromOrderToTarget(order_hflrb, target_pos);
-    }
-    // find path with ??
-    double vx = 0., rz = 0.;
-    simpleDWA(target_pos, vx, rz);
-    if(!test_flag){
-        rob_ctrl.move(vx, rz);
+    if(fromOrderToTarget(order_hflrb, target_pos)){
+        // find path with dwa
+        double vx = 0., rz = 0.;
+        simpleDWA(target_pos, vx, rz);
+//        cout<<"dwactrl:"<<vx<<","<<rz<<endl;
+        if(!test_flag){
+            rob_ctrl.move(vx, rz);
+        }
     }
 }
 
@@ -64,6 +64,8 @@ void SEPlanner::readParam(){
     nh.param("seleplanner/step_discount", step_discount, 1.0);
     nh.param("seleplanner/test_flag", test_flag, false);
     nh.param("seleplanner/height_factor", height_factor, 1.0);
+    nh.param("seleplanner/turn_tune", turn_tune, 1.0);
+    nh.param("seleplanner/showdwa", showdwa, true);
     resolution_turn_radius = 2 * max_turn_radius / (n_directions - 1);
     //prepare points for dwa
     Eigen::Vector2d tmpP;
@@ -84,6 +86,10 @@ void SEPlanner::readParam(){
 //        cout<<"--init:"<<param_list[i];
         type_factor.push_back(double(param_list[i]));
     }
+
+    if(showdwa){
+        cv::namedWindow("dwa", cv::WINDOW_NORMAL);
+    }
 }
 
 void SEPlanner::initSubPub(){
@@ -95,7 +101,7 @@ void SEPlanner::initSubPub(){
     path_pub = nh.advertise<nav_msgs::Path>("/dwa_path", 1);
 }
 
-void SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
+bool SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
     geometry_msgs::TransformStamped tf_map_self;
     try{
       tf_self_map = tfBuffer.lookupTransform(map_frame, base_frame, ros::Time(0));
@@ -104,9 +110,10 @@ void SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
     catch (tf2::TransformException &ex) {
       ROS_WARN("%s",ex.what());
       ros::Duration(1.0).sleep();
-      return;
+      return false;
     }
-    if(order == 1){
+    if(order == 0){return false;}
+    else if(order == 1){
         target[0] = 5;
         target[1] = 0;
     }
@@ -124,8 +131,23 @@ void SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
     }
     else if(order == 5){
         tf2::doTransform(target_map, target, tf_map_self);
+        geometry_msgs::TransformStamped transformStamped;
+        transformStamped.child_frame_id = target_frame;
+        transformStamped.header.frame_id = map_frame;
+        transformStamped.transform.translation.x = target_map[0];
+        transformStamped.transform.translation.y = target_map[1];
+        transformStamped.transform.translation.z = target_map[2];
+        transformStamped.transform.rotation.w = 1;
+        transformStamped.child_frame_id = target_frame;
+        tfBroadcaster.sendTransform(transformStamped);
 //        cout<<target<<";\n";
+        if( (pow(target[0],2) + pow(target[1],2)) < 0.09){  // target^2 < dist^2
+            ROS_INFO("[SEPLANNER]to target...");
+            reset();
+            return false; //to target
+        }
     }
+    return true;
 }
 
 //target in base frame
@@ -133,24 +155,78 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
     // ROS_INFO("DWA START");
     // get pose from latest tf
 //    geometry_msgs::TransformStamped transformStamped;
+    cv::Mat dwa_img = cv::Mat(300, 600, CV_8UC3, cv::Scalar(255,255,255)).clone();
 
     // ROS_INFO("score all path");
     // score all posible path
     double highest_score = -100, score;
     int best_i_rad = -1, best_i_step, step;
+    vector<double> before_fuse_vec, after_fuse_vec;  //score vector
+    vector<int> step_vec;
     for(int i_rad=0; i_rad<n_directions; ++i_rad){
         score = 0;
         step = scorePosiblePath(score, target, tf_self_map, i_rad);
-        // ROS_INFO("rad %i score is %f",i_rad,score);
-        if(highest_score < score){
-            highest_score = score;
+//        ROS_INFO("rad %i score is %f",i_rad,score);
+        before_fuse_vec.push_back(score);
+        after_fuse_vec.push_back(score);
+        step_vec.push_back(step);
+        //draw dwa
+        if(showdwa){
+            int startpr = 299, startpc, endpr, endpc;
+//            startpc = 550 - i_rad * 500 / n_directions;
+//            endpc = startpc - 350 / n_directions;
+//            endpr = startpr - 200 * (score + 5) / (5);
+//            cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(3,2,250), 2);
+            startpc = 550 - i_rad * 500 / n_directions;
+            endpc = startpc - 350 / n_directions;
+            endpr = startpr - 200 * (step) / (dwa_total_steps);
+            cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(230,2,250), 3);
+        }
+//        if(highest_score < score){
+//            highest_score = score;
+//            best_i_rad = i_rad;
+//            best_i_step = step;
+//        }
+    }
+    //smooth score to choose better path
+    for(int i_rad=0; i_rad<n_directions; ++i_rad){
+        if(i_rad == 0){
+            after_fuse_vec[0] = (before_fuse_vec[0] + before_fuse_vec[1]) / 2;
+        }
+        else if(i_rad == n_directions-1){
+            after_fuse_vec[i_rad] = (before_fuse_vec[i_rad] + before_fuse_vec[i_rad-1]) / 2;
+        }
+        else{
+            after_fuse_vec[i_rad] = (before_fuse_vec[i_rad] + before_fuse_vec[i_rad-1] + before_fuse_vec[i_rad+1]) / 3;
+        }
+        if(highest_score < after_fuse_vec[i_rad]){
+            highest_score = after_fuse_vec[i_rad];
             best_i_rad = i_rad;
-            best_i_step = step;
+            best_i_step = step_vec[i_rad];
+        }
+        //draw dwa
+        if(showdwa){
+            int startpr = 299, startpc, endpr, endpc;
+            startpc = 550 - i_rad * 500 / n_directions;
+            endpc = startpc - 300 / n_directions;
+            endpr = startpr - 200 * (after_fuse_vec[i_rad] + 5) / (10);
+            cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(123,222,0), -1);
         }
     }
+
     // calculate vx rz with best turn_rad
     double turn_rad = (best_i_rad * resolution_turn_radius - max_turn_radius) / resolution_step,
            go_m = best_i_step * resolution_step;
+    if(showdwa){
+        int startpr = 299, startpc, endpr, endpc;
+        startpc = 550 - best_i_rad * 500 / n_directions;
+        endpc = startpc - 350 / n_directions;
+        endpr = startpr - 200 * (after_fuse_vec[best_i_rad] + 5) / (10);
+        cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(223,22,0), -1);
+        cv::line(dwa_img, cv::Point(300,0), cv::Point(300,299), cv::Scalar(2,2,0));
+        cv::imshow("dwa", dwa_img);
+        cv::waitKey(1);
+    }
     pubDWAPath(best_i_rad, best_i_step);
     calCmd(vx, rz, turn_rad, go_m);
     // ROS_INFO("DWA END");
@@ -180,31 +256,46 @@ int SEPlanner::scorePosiblePath(double& score, Eigen::Vector3d target, geometry_
     last_pos[0] = transformStamped.transform.translation.x;
     last_pos[1] = transformStamped.transform.translation.y;
     //cal sum cost of following grid
-    double totalcost = 0, cost;
+    double totalcost = 0, cost, dist_2;
 //    ROS_INFO("score rad %i",i_rad);
-    int step=0;
+    int step=0, fake_step = 0;
     for(; step<dwa_total_steps; ++step){
-        // ROS_INFO("score step %i",step);
+//         ROS_INFO("score step %i",step);
         //cal pos of next step
         getNextPos(this_pos, transformStamped, i_rad, step);
 //        ROS_INFO("get pos");
         //cal cost between last and this
         if(!calStepCost(cost, last_pos, this_pos)){
+            ++step;
             break;
         }
 //        ROS_INFO("cal cost");
         totalcost += cost;
         last_pos = this_pos;
+        dist_2 = (pow(target_map[0]-this_pos[0],2) + pow(target_map[1]-this_pos[1],2));
+//        cout<<"dist to target:"<<dist_2<<";"<<this_pos<<","<<target<<endl;
+        if(dist_2 < 0.04){
+            fake_step = dwa_total_steps;
+            step += 2;
+            break;
+        }
+        fake_step = step;
     }
     //cal final reward about getting close to target
 //    Eigen::Vector3d tar_mapframe;
 //    tf2::doTransform(target, tar_mapframe, transformStamped);
 //    double dist = sqrt(pow(tar_mapframe[0]-last_pos[0],2) + pow(tar_mapframe[1]-last_pos[1],2));
     --step;
+    --fake_step;
     // ROS_INFO("localframe tar(%f,%f), end(%f,%f)(%i,%i)",target[0], target[1], dwa_path_points[i_rad][step][0],dwa_path_points[i_rad][step][1],i_rad,step);
     double dist = sqrt(pow((target[0]-dwa_path_points[i_rad][step][0]),2) + pow((target[1]-dwa_path_points[i_rad][step][1]),2));
-    score = step_discount * step * resolution_step - dist_discount * dist - totalcost;  //to be confirmed
-    //ROS_INFO("score of rad %i, step %i, dist %f, movecost %f, score %f",i_rad, step,dist, totalcost, score);
+    if(fake_step < step && step < 3){
+        score = -5;
+    }
+    else{
+        score = step_discount * fake_step * resolution_step - dist_discount * dist - totalcost;  //to be confirmed
+    }
+    ROS_INFO("score of rad %i, step %i(%i), dist %f, movecost %f, score %f",i_rad, step,fake_step, dist, totalcost, score);
     return step;
 }
 
@@ -335,7 +426,7 @@ void SEPlanner::calCmd(double& vx, double& rz, double rad, double gol){
     if(vx > MAX_VX){
         vx = MAX_VX;
     }
-    rz = vx * rad;
+    rz = vx * rad * turn_tune;
     if(fabs(rz) > MAX_RZ){
         vx = MAX_RZ / rad;
         rz = MAX_RZ;
@@ -385,7 +476,7 @@ void SEPlanner::joyCB(const sensor_msgs::JoyConstPtr &msg){
     else if(fabs(msg->axes[1]) > 0.05 || fabs(msg->axes[3]) > 0.05){
         movecmd[0] = msg->axes[1] * MAX_VX;
         movecmd[1] = msg->axes[3] *MAX_RZ;
-        rob_ctrl.move(movecmd[0], movecmd[1]);
+//        rob_ctrl.move(movecmd[0], movecmd[1]);
         moving_flag = true;
     }
     else if(moving_flag){

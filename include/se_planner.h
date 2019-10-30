@@ -24,6 +24,10 @@ path planner for semantic-elevation map
 #include <sensor_msgs/Joy.h>
 #include <geometry_msgs/PointStamped.h>
 
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
 #include <grid_map_core/GridMap.hpp>
 #include <grid_map_ros/GridMapRosConverter.hpp>
 #include <grid_map_msgs/GridMap.h>
@@ -47,8 +51,9 @@ private:
     tf2_ros::TransformListener tfListener;
     tf2_ros::TransformBroadcaster tfBroadcaster;
 
+    //control
     Pioneer3AT rob_ctrl;
-    double lastvx, lastrz, movecmd[2];
+    double lastvx, lastrz, movecmd[2], turn_tune;
     bool moving_flag, test_flag;
 
     int order_hflrb;  //0:hold, 1:forward, 2:left, 3:right, 4:backward, 5:settarget
@@ -63,11 +68,12 @@ private:
     int dwa_total_steps, n_directions;
     vector<double> type_factor;
     string map_frame, base_frame, target_frame;
+    bool showdwa;
 
     void readParam();
     void initSubPub();
 
-    void fromOrderToTarget(int order, Eigen::Vector3d &target);
+    bool fromOrderToTarget(int order, Eigen::Vector3d &target);
     void getInfoFromGM(grid_map::Position pos, double& height, int& segtype, double& prob);
     bool checkAround(grid_map::Position pos);
 

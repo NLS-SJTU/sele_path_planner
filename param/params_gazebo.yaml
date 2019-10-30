@@ -7,10 +7,14 @@ seleplanner/resolution_step: 0.2
 seleplanner/dwa_total_steps: 10
 seleplanner/MAX_VX: 0.5
 seleplanner/MAX_RZ: 0.78
-seleplanner/dist_discount: 1.2
-seleplanner/step_discount: 1.
+seleplanner/dist_discount: 0.1
+seleplanner/step_discount: 2.
 seleplanner/Dheight: 0.1
-seleplanner/type_factor: [1., 1., 1., 1., 1.]
+seleplanner/height_factor: 0.
+# 0:road, 1:sidewalk, 2:vegetation, 3:terrain, 4:other
+seleplanner/type_factor: [1., 2., 10., 5., 1000.]
 seleplanner/map_frame: odom
 seleplanner/base_frame: base_link
+seleplanner/turn_tune: 1.0
+seleplanner/showdwa: true
 seleplanner/test_flag: false

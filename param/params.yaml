@@ -7,7 +7,7 @@ seleplanner/resolution_step: 0.2
 seleplanner/dwa_total_steps: 10
 seleplanner/MAX_VX: 0.5
 seleplanner/MAX_RZ: 0.78
-seleplanner/dist_discount: 0.5
+seleplanner/dist_discount: 0.1
 seleplanner/step_discount: 2.
 seleplanner/Dheight: 0.1
 seleplanner/height_factor: 0.
@@ -16,3 +16,5 @@ seleplanner/type_factor: [1., 2., 10., 5., 1000.]
 seleplanner/map_frame: slam
 seleplanner/base_frame: camera
 seleplanner/test_flag: false
+seleplanner/turn_tune: 1.0
+seleplanner/showdwa: false
