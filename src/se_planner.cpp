@@ -477,6 +477,9 @@ void SEPlanner::joyCB(const sensor_msgs::JoyConstPtr &msg){
         movecmd[0] = msg->axes[1] * MAX_VX;
         movecmd[1] = msg->axes[3] *MAX_RZ;
 //        rob_ctrl.move(movecmd[0], movecmd[1]);
+        if(!moving_flag){
+            ROS_INFO("[SEPLANNER]control by hand.");
+        }
         moving_flag = true;
     }
     else if(moving_flag){

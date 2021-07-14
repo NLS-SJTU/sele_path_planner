@@ -7,4 +7,5 @@
     <remap from="elevation_map" to="elevation_mapping/elevation_map_raw"/>
     <remap from="RosAria/cmd_vel" to="sim_p3at/cmd_vel"/>
   </node>
+  <node name="joynode" pkg="joy" type="joy_node"/>
 </launch>
