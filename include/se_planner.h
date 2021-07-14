@@ -46,7 +46,7 @@ public:
 private:
     ros::NodeHandle nh;
     ros::Subscriber semap_sub, elemap_sub, order_sub, joy_sub, target_sub;
-    ros::Publisher path_pub;
+    ros::Publisher path_pub, crossingtype_pub;
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener;
     tf2_ros::TransformBroadcaster tfBroadcaster;

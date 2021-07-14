@@ -1,0 +1,5 @@
+<launch>
+  <include file="$(find ai_robot_sensors)/launch/start_seletest.launch"/>
+  <!--include file="$(find scout_bringup)/launch/scout_minimal_uart.launch"/-->
+  
+</launch>

@@ -99,6 +99,7 @@ void SEPlanner::initSubPub(){
     joy_sub = nh.subscribe("/joy", 1, &SEPlanner::joyCB, this);
     target_sub = nh.subscribe("/targetP", 1, &SEPlanner::targetCB, this);
     path_pub = nh.advertise<nav_msgs::Path>("/dwa_path", 1);
+    crossingtype_pub = nh.advertise<std_msgs::Int16>("/crossing_type", 1);
 }
 
 bool SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
@@ -472,6 +473,20 @@ void SEPlanner::joyCB(const sensor_msgs::JoyConstPtr &msg){
         //cross up
         ROS_INFO("[SEPLANNER]go forward.");
         order_hflrb = 1;
+    }
+    else if(msg->buttons[4] > 0.9){
+        // LB
+        ROS_INFO("[SEPLANNER]set to crossing by manual.");
+        std_msgs::Int16 msg;
+        msg.data = 1;
+        crossingtype_pub.publish(msg);
+    }
+    else if(msg->buttons[5] > 0.9){
+        // RB
+        ROS_INFO("[SEPLANNER]set to road by manual.");
+        std_msgs::Int16 msg;
+        msg.data = 0;
+        crossingtype_pub.publish(msg);
     }
     else if(fabs(msg->axes[1]) > 0.05 || fabs(msg->axes[3]) > 0.05){
         movecmd[0] = msg->axes[1] * MAX_VX;
