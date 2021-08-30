@@ -64,7 +64,7 @@ private:
 
     //params
     double max_turn_radius, resolution_turn_radius, Dheight, height_factor,
-        MAX_VX, MAX_RZ, resolution_step, dist_discount, step_discount;
+        MAX_VX, MAX_RZ, resolution_step, dist_discount, step_discount, robot_radius;
     int dwa_total_steps, n_directions;
     vector<double> type_factor;
     string map_frame, base_frame, target_frame;
@@ -76,6 +76,7 @@ private:
     bool fromOrderToTarget(int order, Eigen::Vector3d &target);
     void getInfoFromGM(grid_map::Position pos, double& height, int& segtype, double& prob);
     bool checkAround(grid_map::Position pos);
+    bool checkAroundAdvance(grid_map::Position pos);
 
     // dwa
     void simpleDWA(Eigen::Vector3d target, double& vx, double& rz);

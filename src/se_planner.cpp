@@ -66,6 +66,7 @@ void SEPlanner::readParam(){
     nh.param("seleplanner/height_factor", height_factor, 1.0);
     nh.param("seleplanner/turn_tune", turn_tune, 1.0);
     nh.param("seleplanner/showdwa", showdwa, true);
+    nh.param("seleplanner/robot_radius", robot_radius, 0.35);
     resolution_turn_radius = 2 * max_turn_radius / (n_directions - 1);
     //prepare points for dwa
     Eigen::Vector2d tmpP;
@@ -341,7 +342,7 @@ bool SEPlanner::calStepCost(double& cost, grid_map::Position last_pos, grid_map:
     if(isnan(h_1) or isnan(h_2)){dh = Dheight/2;}
     else{dh = fabs(h_1 - h_2);}
 
-    if(dh > Dheight || checkAround(this_pos)){
+    if(dh > Dheight || checkAroundAdvance(this_pos)){
         cost = 100;
         return false;
     }
@@ -380,6 +381,32 @@ bool SEPlanner::checkAround(grid_map::Position pos){
            (!(hnear[2]==NAN) && fabs(hnear[2] - height) > Dheight) ||
            (!(hnear[3]==NAN) && fabs(hnear[3] - height) > Dheight)){
             return true;
+        }
+    }
+    else{
+        return true;
+    }
+    return false;
+}
+
+// similar to check around, with checking the area of radius of robot
+bool SEPlanner::checkAroundAdvance(grid_map::Position pos){
+    grid_map::Index ind;
+    grid_map::Length maplength = elevation_GM.getLength();
+    if(elevation_GM.getIndex(pos,ind)){
+        double nearheight, height = elevation_GM.at("elevation", ind);
+        grid_map::Matrix& data = elevation_GM["elevation"];
+        for(grid_map::CircleIterator iterator(elevation_GM, pos, robot_radius); !iterator.isPastEnd(); ++iterator){
+            const grid_map::Index nearind(*iterator);
+            // cout<<"checkAroundindex: "<<nearind(0)<<", "<<nearind(1)<<endl;
+            // if(nearind(0) < 0 or nearind(0) > maplength(0) or nearind(1) < 0 or nearind(1) > maplength(1)){
+            //     continue;
+            // }
+            double hnear = data(nearind(0), nearind(1));
+            // cout<<"checkAroundheight: "<<hnear<<endl;
+            if(!(hnear==NAN) && fabs(hnear - height) > Dheight){
+                return true;
+            }
         }
     }
     else{
@@ -488,9 +515,9 @@ void SEPlanner::joyCB(const sensor_msgs::JoyConstPtr &msg){
         msg.data = 0;
         crossingtype_pub.publish(msg);
     }
-    else if(fabs(msg->axes[1]) > 0.05 || fabs(msg->axes[3]) > 0.05){
+    else if(fabs(msg->axes[1]) > 0.05 || fabs(msg->axes[2]) > 0.05){
         movecmd[0] = msg->axes[1] * MAX_VX;
-        movecmd[1] = msg->axes[3] *MAX_RZ;
+        movecmd[1] = msg->axes[2] * MAX_RZ;
 //        rob_ctrl.move(movecmd[0], movecmd[1]);
         if(!moving_flag){
             ROS_INFO("[SEPLANNER]control by hand.");
