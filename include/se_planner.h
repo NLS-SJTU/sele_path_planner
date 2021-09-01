@@ -68,7 +68,7 @@ private:
     int dwa_total_steps, n_directions;
     vector<double> type_factor;
     string map_frame, base_frame, target_frame;
-    bool showdwa;
+    bool showdwa, lock_moving;
 
     void readParam();
     void initSubPub();

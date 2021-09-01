@@ -23,6 +23,8 @@ SEPlanner::~SEPlanner(){
 }
 
 void SEPlanner::orderandGo(){
+    if(lock_moving)
+        return;
     Eigen::Vector3d target_pos;
     if(moving_flag){
 //        cout<<"movebyhand:"<<movecmd[0]<<","<<movecmd[1]<<endl;
@@ -120,12 +122,12 @@ bool SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
         target[1] = 0;
     }
     else if(order == 2){
-        target[0] = 5;
-        target[1] = 3;
+        target[0] = 3;
+        target[1] = 5;
     }
     else if(order == 3){
-        target[0] = 5;
-        target[1] = -3;
+        target[0] = 3;
+        target[1] = -5;
     }
     else if(order == 4){
         target[0] = -5;
@@ -161,7 +163,7 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
 
     // ROS_INFO("score all path");
     // score all posible path
-    double highest_score = -100, score;
+    double highest_score = -100, highest_score_b = -100, lowest_score_b = 100, score;
     int best_i_rad = -1, best_i_step, step;
     vector<double> before_fuse_vec, after_fuse_vec;  //score vector
     vector<int> step_vec;
@@ -172,6 +174,12 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
         before_fuse_vec.push_back(score);
         after_fuse_vec.push_back(score);
         step_vec.push_back(step);
+        if(lowest_score_b > score){
+            lowest_score_b = score;
+        }
+        if(highest_score_b < score){
+            highest_score_b = score;
+        }
         //draw dwa
         if(showdwa){
             int startpr = 299, startpc, endpr, endpc;
@@ -211,7 +219,8 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
             int startpr = 299, startpc, endpr, endpc;
             startpc = 550 - i_rad * 500 / n_directions;
             endpc = startpc - 300 / n_directions;
-            endpr = startpr - 200 * (after_fuse_vec[i_rad] + 5) / (10);
+            // endpr = startpr - 200 * (after_fuse_vec[i_rad] + 5) / (10);
+            endpr = startpr - 200 * (after_fuse_vec[i_rad] - lowest_score_b) / (highest_score_b - lowest_score_b);
             cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(123,222,0), -1);
         }
     }
@@ -220,10 +229,16 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
     double turn_rad = (best_i_rad * resolution_turn_radius - max_turn_radius) / resolution_step,
            go_m = best_i_step * resolution_step;
     if(showdwa){
+        // legend
+        cv::putText(dwa_img, "score", cv::Point(50,20), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(123,222,0));
+        cv::putText(dwa_img, "dist", cv::Point(50,50), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(230,2,250));
+        cv::putText(dwa_img, "chosen", cv::Point(50,80), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(2,2,0));     
+
         int startpr = 299, startpc, endpr, endpc;
         startpc = 550 - best_i_rad * 500 / n_directions;
         endpc = startpc - 350 / n_directions;
-        endpr = startpr - 200 * (after_fuse_vec[best_i_rad] + 5) / (10);
+        // endpr = startpr - 200 * (after_fuse_vec[best_i_rad] + 5) / (10);
+        endpr = startpr - 200;
         cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(223,22,0), -1);
         cv::line(dwa_img, cv::Point(300,0), cv::Point(300,299), cv::Scalar(2,2,0));
         cv::imshow("dwa", dwa_img);
@@ -291,13 +306,13 @@ int SEPlanner::scorePosiblePath(double& score, Eigen::Vector3d target, geometry_
     --fake_step;
     // ROS_INFO("localframe tar(%f,%f), end(%f,%f)(%i,%i)",target[0], target[1], dwa_path_points[i_rad][step][0],dwa_path_points[i_rad][step][1],i_rad,step);
     double dist = sqrt(pow((target[0]-dwa_path_points[i_rad][step][0]),2) + pow((target[1]-dwa_path_points[i_rad][step][1]),2));
-    if(fake_step < step && step < 3){
+    if(false){//fake_step < step && step < 3){
         score = -5;
     }
     else{
         score = step_discount * fake_step * resolution_step - dist_discount * dist - totalcost;  //to be confirmed
     }
-    ROS_INFO("score of rad %i, step %i(%i), dist %f, movecost %f, score %f",i_rad, step,fake_step, dist, totalcost, score);
+    // ROS_INFO("score of rad %i, step %i(%i), dist %f, movecost %f, score %f",i_rad, step,fake_step, dist, totalcost, score);
     return step;
 }
 
@@ -484,7 +499,14 @@ void SEPlanner::joyCB(const sensor_msgs::JoyConstPtr &msg){
     if(msg->buttons[0] > 0.9){
         //btn A
         order_hflrb = 0;
+        lock_moving = true;
+        ROS_INFO("[SEPLANNER]lock moving.");
         reset();
+    }
+    else if(msg->buttons[3] > 0.9){
+        //btn Y
+        lock_moving = false;
+        ROS_INFO("[SEPLANNER]unlock moving.");
     }
     else if(msg->axes[6] > 0.9){
         //cross left
@@ -515,9 +537,9 @@ void SEPlanner::joyCB(const sensor_msgs::JoyConstPtr &msg){
         msg.data = 0;
         crossingtype_pub.publish(msg);
     }
-    else if(fabs(msg->axes[1]) > 0.05 || fabs(msg->axes[2]) > 0.05){
+    else if(fabs(msg->axes[1]) > 0.05 || fabs(msg->axes[3]) > 0.05){
         movecmd[0] = msg->axes[1] * MAX_VX;
-        movecmd[1] = msg->axes[2] * MAX_RZ;
+        movecmd[1] = msg->axes[3] * MAX_RZ;
 //        rob_ctrl.move(movecmd[0], movecmd[1]);
         if(!moving_flag){
             ROS_INFO("[SEPLANNER]control by hand.");
