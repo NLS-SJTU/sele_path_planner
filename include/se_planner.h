@@ -45,7 +45,7 @@ public:
 
 private:
     ros::NodeHandle nh;
-    ros::Subscriber semap_sub, elemap_sub, order_sub, joy_sub, target_sub;
+    ros::Subscriber semap_sub, elemap_sub, order_sub, joy_sub, target_sub, targetodom_sub;
     ros::Publisher path_pub, crossingtype_pub;
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener;
@@ -55,6 +55,7 @@ private:
     Pioneer3AT rob_ctrl;
     double lastvx, lastrz, movecmd[2], turn_tune;
     bool moving_flag, test_flag;
+    int turnback_cnt;
 
     int order_hflrb;  //0:hold, 1:forward, 2:left, 3:right, 4:backward, 5:settarget
     Eigen::Vector3d target_map;
@@ -93,6 +94,7 @@ private:
     void orderCB(const std_msgs::Int16ConstPtr &msg);
     void joyCB(const sensor_msgs::JoyConstPtr &msg);
     void targetCB(const geometry_msgs::PoseConstPtr &msg);
+    void targetodomCB(const geometry_msgs::PoseConstPtr &msg);
     void poseCB(const geometry_msgs::PoseStamped::ConstPtr &_msg);
 };
 

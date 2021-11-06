@@ -4,7 +4,7 @@ using namespace std;
 
 SEPlanner::SEPlanner(ros::NodeHandle &_n):nh(_n)
   , rob_ctrl(_n), order_hflrb(0), tfListener(tfBuffer)
-  , lastvx(0.), lastrz(0.), moving_flag(false), showdwa(false)
+  , lastvx(0.), lastrz(0.), moving_flag(false), showdwa(false), turnback_cnt(0)
 {
     reset();
     readParam();
@@ -31,10 +31,36 @@ void SEPlanner::orderandGo(){
         rob_ctrl.move(movecmd[0], movecmd[1]);
     }
     if(fromOrderToTarget(order_hflrb, target_pos)){
-        // find path with dwa
         double vx = 0., rz = 0.;
-        simpleDWA(target_pos, vx, rz);
-//        cout<<"dwactrl:"<<vx<<","<<rz<<endl;
+        if(turnback_cnt > 0){
+            if(turnback_cnt == 30){
+                ROS_INFO("[SEPLANNER]moving back");
+            }       
+            --turnback_cnt;
+            vx = -MAX_VX / 2;     
+            if(rz > lastrz + 0.1){
+                rz = lastrz + 0.1;
+            }
+            else if(rz < lastrz - 0.1){
+                rz = lastrz - 0.1;
+            }
+            if(vx > lastvx + 0.1){
+                vx = lastvx + 0.1;
+            }
+            else if(vx < lastvx - 0.1){
+                vx = lastvx - 0.1;
+            }
+            lastvx = vx;
+            lastrz = rz;
+        }
+        else{
+            // find path with dwa
+            simpleDWA(target_pos, vx, rz);
+            // cout<<"dwactrl:"<<vx<<","<<rz<<endl;
+            if(vx == 0){
+                turnback_cnt = 30;
+            }
+        }        
         if(!test_flag){
             rob_ctrl.move(vx, rz);
         }
@@ -101,6 +127,7 @@ void SEPlanner::initSubPub(){
     order_sub = nh.subscribe("/se_order", 1, &SEPlanner::orderCB, this);
     joy_sub = nh.subscribe("/joy", 1, &SEPlanner::joyCB, this);
     target_sub = nh.subscribe("/targetP", 1, &SEPlanner::targetCB, this);
+    targetodom_sub = nh.subscribe("/targetP_odom", 1, &SEPlanner::targetodomCB, this);
     path_pub = nh.advertise<nav_msgs::Path>("/dwa_path", 1);
     crossingtype_pub = nh.advertise<std_msgs::Int16>("/crossing_type", 1);
 }
@@ -171,6 +198,7 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
         score = 0;
         step = scorePosiblePath(score, target, tf_self_map, i_rad);
 //        ROS_INFO("rad %i score is %f",i_rad,score);
+        // cout<<"i:"<<i_rad<<", step:"<<step<<", score:"<<score<<endl;
         before_fuse_vec.push_back(score);
         after_fuse_vec.push_back(score);
         step_vec.push_back(step);
@@ -199,6 +227,7 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
 //        }
     }
     //smooth score to choose better path
+    // ROS_INFO("smooth score and choose best path");
     for(int i_rad=0; i_rad<n_directions; ++i_rad){
         if(i_rad == 0){
             after_fuse_vec[0] = (before_fuse_vec[0] + before_fuse_vec[1]) / 2;
@@ -214,6 +243,7 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
             best_i_rad = i_rad;
             best_i_step = step_vec[i_rad];
         }
+        // cout<<"score: "<<after_fuse_vec[i_rad]<<", i:"<<i_rad<<endl;
         //draw dwa
         if(showdwa){
             int startpr = 299, startpc, endpr, endpc;
@@ -223,11 +253,14 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
             endpr = startpr - 200 * (after_fuse_vec[i_rad] - lowest_score_b) / (highest_score_b - lowest_score_b);
             cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(123,222,0), -1);
         }
+        // cout<<"1111"<<endl;
     }
 
     // calculate vx rz with best turn_rad
+    // ROS_INFO("draw data");
     double turn_rad = (best_i_rad * resolution_turn_radius - max_turn_radius) / resolution_step,
            go_m = best_i_step * resolution_step;
+    // cout<<"best i:"<<best_i_rad<<", turn_rad:"<<turn_rad<<", go_m:"<<go_m<<endl;
     if(showdwa){
         // legend
         cv::putText(dwa_img, "score", cv::Point(50,20), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(123,222,0));
@@ -292,6 +325,7 @@ int SEPlanner::scorePosiblePath(double& score, Eigen::Vector3d target, geometry_
         dist_2 = (pow(target_map[0]-this_pos[0],2) + pow(target_map[1]-this_pos[1],2));
 //        cout<<"dist to target:"<<dist_2<<";"<<this_pos<<","<<target<<endl;
         if(dist_2 < 0.04){
+            // to target
             fake_step = dwa_total_steps;
             step += 2;
             break;
@@ -311,6 +345,9 @@ int SEPlanner::scorePosiblePath(double& score, Eigen::Vector3d target, geometry_
     }
     else{
         score = step_discount * fake_step * resolution_step - dist_discount * dist - totalcost;  //to be confirmed
+    }
+    if(score < -5){
+        score = -5;
     }
     // ROS_INFO("score of rad %i, step %i(%i), dist %f, movecost %f, score %f",i_rad, step,fake_step, dist, totalcost, score);
     return step;
@@ -461,19 +498,32 @@ void SEPlanner::getInfoFromGM(grid_map::Position pos, double& height, int& segty
 }
 
 void SEPlanner::calCmd(double& vx, double& rz, double rad, double gol){
-    if(gol > 1.5)
-        vx = lastvx + 0.1;
+    if(gol > MAX_VX * 3)
+        vx = MAX_VX;
     else{
         vx = gol / 3;
     }
-    if(vx > MAX_VX){
-        vx = MAX_VX;
+    if(vx > lastvx + 0.1){
+        vx = lastvx + 0.1;
+    }
+    else if(vx < lastvx - 0.1){
+        vx = lastvx - 0.1;
     }
     rz = vx * rad * turn_tune;
     if(fabs(rz) > MAX_RZ){
-        vx = MAX_RZ / rad;
-        rz = MAX_RZ;
+        vx = MAX_RZ / fabs(rad) / turn_tune;
+        rz = MAX_RZ * rz / fabs(rz);
     }
+    // if(rz > lastrz + MAX_RZ / 5){
+    //     rz = lastrz + 0.1;
+    // }
+    // else if(rz < lastrz - MAX_RZ / 5){
+    //     rz = lastrz - 0.1;
+    // }
+    else if(vx < 0){
+        rz = 0;
+    }
+    // cout<<"vx:"<<vx<<" rz:"<<rz<<endl;
     lastvx = vx;
     lastrz = rz;
 }
@@ -576,5 +626,12 @@ void SEPlanner::targetCB(const geometry_msgs::PoseConstPtr &msg){
 //    transformStamped.transform.translation.z = pos_map[2];
 //    transformStamped.child_frame_id = target_frame;
 //    tfBroadcaster.sendTransform(transformStamped);
+    order_hflrb = 5;
+}
+
+void SEPlanner::targetodomCB(const geometry_msgs::PoseConstPtr &msg){
+    target_map[0] = msg->position.x;
+    target_map[1] = msg->position.y;
+    target_map[2] = msg->position.z;
     order_hflrb = 5;
 }

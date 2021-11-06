@@ -1,9 +1,9 @@
 # max_turn_radius/resolution_step denotes when agv turns ?rad/m
 seleplanner/max_turn_radius: 0.628
-seleplanner/robot_radius: 0.35
+seleplanner/robot_radius: 0.4
 #seleplanner/resolution_turn_radius: 0.0157
 #make this n_directions odd
-seleplanner/n_directions: 41
+seleplanner/n_directions: 21
 seleplanner/resolution_step: 0.2
 seleplanner/dwa_total_steps: 10
 seleplanner/MAX_VX: 0.75
