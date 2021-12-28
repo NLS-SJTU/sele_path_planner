@@ -59,13 +59,14 @@ private:
 
     int order_hflrb;  //0:hold, 1:forward, 2:left, 3:right, 4:backward, 5:settarget
     Eigen::Vector3d target_map;
+    vector<Eigen::Vector3d> vec_target_map; //for smoothing the target
     geometry_msgs::TransformStamped tf_self_map;
     grid_map::GridMap semantic_GM, elevation_GM;
     vector<vector<Eigen::Vector2d> > dwa_path_points; //in base frame, first direction,second forward
 
     //params
     double max_turn_radius, resolution_turn_radius, Dheight, height_factor,
-        MAX_VX, MAX_RZ, resolution_step, dist_discount, step_discount, robot_radius;
+        MAX_VX, MAX_RZ, resolution_step, dist_discount, step_discount, robot_radius, unknowgrid_factor;
     int dwa_total_steps, n_directions;
     vector<double> type_factor;
     string map_frame, base_frame, target_frame;
@@ -78,9 +79,10 @@ private:
     void getInfoFromGM(grid_map::Position pos, double& height, int& segtype, double& prob);
     bool checkAround(grid_map::Position pos);
     bool checkAroundAdvance(grid_map::Position pos);
+    double calDelHeight(double h_1, double h_2);
 
     // dwa
-    void simpleDWA(Eigen::Vector3d target, double& vx, double& rz);
+    bool simpleDWA(Eigen::Vector3d target, double& vx, double& rz);
 //    void simpleVFH(Eigen::Vector3d target, double& vx, double& rz);
     int scorePosiblePath(double& score, Eigen::Vector3d target, geometry_msgs::TransformStamped transformStamped, int i_rad);
     void calCmd(double& vx, double& rz, double rad, double gol);

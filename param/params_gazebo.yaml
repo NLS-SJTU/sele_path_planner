@@ -19,3 +19,4 @@ seleplanner/base_frame: base_link
 seleplanner/turn_tune: 1.0
 seleplanner/showdwa: true
 seleplanner/test_flag: false
+seleplanner/unknowgrid_factor: 0.99

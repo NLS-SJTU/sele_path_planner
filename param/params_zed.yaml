@@ -5,12 +5,12 @@ seleplanner/robot_radius: 0.35
 #make this n_directions odd
 seleplanner/n_directions: 21
 seleplanner/resolution_step: 0.2
-seleplanner/dwa_total_steps: 10
+seleplanner/dwa_total_steps: 15
 seleplanner/MAX_VX: 0.5
-seleplanner/MAX_RZ: 0.78
+seleplanner/MAX_RZ: 0.52
 seleplanner/dist_discount: 0.1
 seleplanner/step_discount: 2.
-seleplanner/Dheight: 0.1
+seleplanner/Dheight: 0.15
 seleplanner/height_factor: 0.
 # 0:road, 1:sidewalk, 2:vegetation, 3:terrain, 4:other
 seleplanner/type_factor: [1., 2., 10., 5., 1000.]
@@ -18,4 +18,6 @@ seleplanner/map_frame: odom
 seleplanner/base_frame: base_link
 seleplanner/test_flag: false
 seleplanner/turn_tune: 1.0
-seleplanner/showdwa: false
+seleplanner/showdwa: true
+# if unknowgrid_factor > 1, unknow is not passable, if 0 < * < 1, unknow is considered passable
+seleplanner/unknowgrid_factor: 0.99

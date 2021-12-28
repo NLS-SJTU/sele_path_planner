@@ -3,7 +3,7 @@
 using namespace std;
 
 SEPlanner::SEPlanner(ros::NodeHandle &_n):nh(_n)
-  , rob_ctrl(_n), order_hflrb(0), tfListener(tfBuffer)
+  , rob_ctrl(_n), order_hflrb(0), tfListener(tfBuffer), lock_moving(false)
   , lastvx(0.), lastrz(0.), moving_flag(false), showdwa(false), turnback_cnt(0)
 {
     reset();
@@ -23,13 +23,13 @@ SEPlanner::~SEPlanner(){
 }
 
 void SEPlanner::orderandGo(){
-    if(lock_moving)
-        return;
     Eigen::Vector3d target_pos;
     if(moving_flag){
 //        cout<<"movebyhand:"<<movecmd[0]<<","<<movecmd[1]<<endl;
         rob_ctrl.move(movecmd[0], movecmd[1]);
     }
+    // if(lock_moving)
+    //     return;
     if(fromOrderToTarget(order_hflrb, target_pos)){
         double vx = 0., rz = 0.;
         if(turnback_cnt > 0){
@@ -37,17 +37,18 @@ void SEPlanner::orderandGo(){
                 ROS_INFO("[SEPLANNER]moving back");
             }       
             --turnback_cnt;
-            vx = -MAX_VX / 2;     
+            vx = -MAX_VX / 2;
+            int accstep = int(MAX_VX / 2 / 0.1);
             if(rz > lastrz + 0.1){
                 rz = lastrz + 0.1;
             }
             else if(rz < lastrz - 0.1){
                 rz = lastrz - 0.1;
             }
-            if(vx > lastvx + 0.1){
+            if(turnback_cnt > 30 - accstep){
                 vx = lastvx + 0.1;
             }
-            else if(vx < lastvx - 0.1){
+            else if(lastvx > vx){
                 vx = lastvx - 0.1;
             }
             lastvx = vx;
@@ -55,13 +56,13 @@ void SEPlanner::orderandGo(){
         }
         else{
             // find path with dwa
-            simpleDWA(target_pos, vx, rz);
+            bool forwardok = simpleDWA(target_pos, vx, rz);
             // cout<<"dwactrl:"<<vx<<","<<rz<<endl;
-            if(vx == 0){
+            if(not forwardok){
                 turnback_cnt = 30;
             }
         }        
-        if(!test_flag){
+        if(!test_flag && !lock_moving){
             rob_ctrl.move(vx, rz);
         }
     }
@@ -75,6 +76,7 @@ void SEPlanner::reset(){
     lastrz = 0;
     movecmd[0] = 0;
     movecmd[1] = 0;
+    vec_target_map.clear();
 }
 
 void SEPlanner::readParam(){
@@ -95,6 +97,7 @@ void SEPlanner::readParam(){
     nh.param("seleplanner/turn_tune", turn_tune, 1.0);
     nh.param("seleplanner/showdwa", showdwa, true);
     nh.param("seleplanner/robot_radius", robot_radius, 0.35);
+    nh.param("seleplanner/unknowgrid_factor", unknowgrid_factor, 0.9);
     resolution_turn_radius = 2 * max_turn_radius / (n_directions - 1);
     //prepare points for dwa
     Eigen::Vector2d tmpP;
@@ -163,13 +166,13 @@ bool SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
     else if(order == 5){
         tf2::doTransform(target_map, target, tf_map_self);
         geometry_msgs::TransformStamped transformStamped;
+        transformStamped.header.stamp = ros::Time::now();
         transformStamped.child_frame_id = target_frame;
         transformStamped.header.frame_id = map_frame;
         transformStamped.transform.translation.x = target_map[0];
         transformStamped.transform.translation.y = target_map[1];
         transformStamped.transform.translation.z = target_map[2];
         transformStamped.transform.rotation.w = 1;
-        transformStamped.child_frame_id = target_frame;
         tfBroadcaster.sendTransform(transformStamped);
 //        cout<<target<<";\n";
         if( (pow(target[0],2) + pow(target[1],2)) < 0.09){  // target^2 < dist^2
@@ -182,7 +185,7 @@ bool SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
 }
 
 //target in base frame
-void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
+bool SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
     // ROS_INFO("DWA START");
     // get pose from latest tf
 //    geometry_msgs::TransformStamped transformStamped;
@@ -197,7 +200,7 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
     for(int i_rad=0; i_rad<n_directions; ++i_rad){
         score = 0;
         step = scorePosiblePath(score, target, tf_self_map, i_rad);
-//        ROS_INFO("rad %i score is %f",i_rad,score);
+        // ROS_INFO("rad %i score is %f",i_rad,score);
         // cout<<"i:"<<i_rad<<", step:"<<step<<", score:"<<score<<endl;
         before_fuse_vec.push_back(score);
         after_fuse_vec.push_back(score);
@@ -265,7 +268,7 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
         // legend
         cv::putText(dwa_img, "score", cv::Point(50,20), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(123,222,0));
         cv::putText(dwa_img, "dist", cv::Point(50,50), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(230,2,250));
-        cv::putText(dwa_img, "chosen", cv::Point(50,80), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(2,2,0));     
+        cv::putText(dwa_img, "chosen", cv::Point(50,80), cv::FONT_HERSHEY_COMPLEX, 0.8, cv::Scalar(223,22,0));     
 
         int startpr = 299, startpc, endpr, endpc;
         startpc = 550 - best_i_rad * 500 / n_directions;
@@ -279,6 +282,7 @@ void SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
     }
     pubDWAPath(best_i_rad, best_i_step);
     calCmd(vx, rz, turn_rad, go_m);
+    return best_i_step > 0;
     // ROS_INFO("DWA END");
 }
 
@@ -307,7 +311,7 @@ int SEPlanner::scorePosiblePath(double& score, Eigen::Vector3d target, geometry_
     last_pos[1] = transformStamped.transform.translation.y;
     //cal sum cost of following grid
     double totalcost = 0, cost, dist_2;
-//    ROS_INFO("score rad %i",i_rad);
+    // ROS_INFO("score rad %i",i_rad);
     int step=0, fake_step = 0;
     for(; step<dwa_total_steps; ++step){
 //         ROS_INFO("score step %i",step);
@@ -390,11 +394,9 @@ bool SEPlanner::calStepCost(double& cost, grid_map::Position last_pos, grid_map:
     getInfoFromGM(this_pos, h_2, segtype_2, pro_2);
 //    cout<<"segtype2"<<segtype_2<<endl;
 //    ROS_INFO("get data from GM");
-    double dh = 0;
-    if(isnan(h_1) or isnan(h_2)){dh = Dheight/2;}
-    else{dh = fabs(h_1 - h_2);}
+    double dh = calDelHeight(h_1, h_2);
 
-    if(dh > Dheight || checkAroundAdvance(this_pos)){
+    if(dh > Dheight || not checkAroundAdvance(this_pos)){
         cost = 100;
         return false;
     }
@@ -402,6 +404,14 @@ bool SEPlanner::calStepCost(double& cost, grid_map::Position last_pos, grid_map:
     //cout<<"prob2:"<<pro_2<<",segtype_2:"<<segtype_2<<",dh:"<<dh<<endl;
     cost = (2 - pro_2) * (height_factor*dh + resolution_step) * type_factor[segtype_2];
     return true;
+}
+
+double SEPlanner::calDelHeight(double h_1, double h_2){
+    double dh;
+    if(isnan(h_1) or isnan(h_2)){dh = Dheight * unknowgrid_factor;}
+    else{dh = fabs(h_1 - h_2);}
+    // cout<<h_1<<", "<<h_2<<", "<<dh<<"==="<<endl;
+    return dh;
 }
 
 //check whether near danger place, true is danger
@@ -442,6 +452,7 @@ bool SEPlanner::checkAround(grid_map::Position pos){
 }
 
 // similar to check around, with checking the area of radius of robot
+// return true if safe
 bool SEPlanner::checkAroundAdvance(grid_map::Position pos){
     grid_map::Index ind;
     grid_map::Length maplength = elevation_GM.getLength();
@@ -455,16 +466,19 @@ bool SEPlanner::checkAroundAdvance(grid_map::Position pos){
             //     continue;
             // }
             double hnear = data(nearind(0), nearind(1));
+            double dh = calDelHeight(hnear, height);
             // cout<<"checkAroundheight: "<<hnear<<endl;
-            if(!(hnear==NAN) && fabs(hnear - height) > Dheight){
-                return true;
+            if(dh > Dheight){
+                // cout<<hnear<<", "<<height<<", "<<dh<<"==="<<endl;
+                return false;
             }
         }
     }
     else{
+        // how to deal with unknown grid
         return true;
     }
-    return false;
+    return true;
 }
 
 void SEPlanner::getInfoFromGM(grid_map::Position pos, double& height, int& segtype, double& prob){
@@ -498,32 +512,52 @@ void SEPlanner::getInfoFromGM(grid_map::Position pos, double& height, int& segty
 }
 
 void SEPlanner::calCmd(double& vx, double& rz, double rad, double gol){
+    if(lastvx < 0){
+        lastvx = 0;
+        lastrz = 0;
+    }
     if(gol > MAX_VX * 3)
         vx = MAX_VX;
     else{
         vx = gol / 3;
-    }
-    if(vx > lastvx + 0.1){
-        vx = lastvx + 0.1;
-    }
-    else if(vx < lastvx - 0.1){
-        vx = lastvx - 0.1;
     }
     rz = vx * rad * turn_tune;
     if(fabs(rz) > MAX_RZ){
         vx = MAX_RZ / fabs(rad) / turn_tune;
         rz = MAX_RZ * rz / fabs(rz);
     }
-    // if(rz > lastrz + MAX_RZ / 5){
+    // smooth
+    int minstepstovx = int(fabs(vx - lastvx) / 0.1)+1;
+    int minstepstorz = int(fabs(rz - lastrz) / 0.1)+1;
+    double delvx = 0.1, delrz = 0.1;
+    if(minstepstovx > minstepstorz){
+        delrz = (rz - lastrz) / minstepstovx;
+        delvx = (vx - lastvx) / minstepstovx;
+    }
+    else{
+        delrz = (rz - lastrz) / minstepstorz;
+        delvx = (vx - lastvx) / minstepstorz;
+    }
+
+    vx = lastvx + delvx;
+    rz = lastrz + delrz;
+    //cout<<"vx:"<<vx<<" rz:"<<rz<<" gol:"<<gol<<" rad:"<<rad<<", delvx:"<<delvx<<", delrz:"<<delrz<<", minstepvx:"<<minstepstovx<<", minsteprz:"<<minstepstorz<<endl;
+    // if(vx > lastvx + 0.1){
+    //     vx = lastvx + 0.1;
+    // }
+    // else if(vx < lastvx - 0.1){
+    //     vx = lastvx - 0.1;
+    // }
+    // if(rz > lastrz + 0.1){
     //     rz = lastrz + 0.1;
     // }
-    // else if(rz < lastrz - MAX_RZ / 5){
+    // else if(rz < lastrz - 0.1){
     //     rz = lastrz - 0.1;
     // }
-    else if(vx < 0){
-        rz = 0;
-    }
-    // cout<<"vx:"<<vx<<" rz:"<<rz<<endl;
+    // if(vx < 0){
+    //     vx = 0;
+    //     rz = 0;
+    // }
     lastvx = vx;
     lastrz = rz;
 }
@@ -627,11 +661,49 @@ void SEPlanner::targetCB(const geometry_msgs::PoseConstPtr &msg){
 //    transformStamped.child_frame_id = target_frame;
 //    tfBroadcaster.sendTransform(transformStamped);
     order_hflrb = 5;
+    // tf2_ros::TransformBroadcaster br;
+    // geometry_msgs::TransformStamped transform;
+    // transform.header.stamp = ros::Time::now();
+    // transform.header.frame_id = "odom";
+    // transform.child_frame_id = "target";
+    // br.sendTransform(transform);
 }
 
 void SEPlanner::targetodomCB(const geometry_msgs::PoseConstPtr &msg){
-    target_map[0] = msg->position.x;
-    target_map[1] = msg->position.y;
-    target_map[2] = msg->position.z;
+    Eigen::Vector3d tmptarmap(msg->position.x, msg->position.y, msg->position.z);
+    if(vec_target_map.size() == 0){
+        vec_target_map.push_back(tmptarmap);
+    }
+    else{
+        // judge whether the same as the last one
+        Eigen::Vector3d dellastthis = tmptarmap - vec_target_map[vec_target_map.size()-1];
+        if(dellastthis.norm() > 0.05){
+            // add this to vector
+            vec_target_map.push_back(tmptarmap);
+            if(vec_target_map.size() > 3){
+                // only store last 5
+                vec_target_map.erase(vec_target_map.begin());
+            }
+        }
+    }
+    target_map << 0,0,0;
+    for(int i=0; i<vec_target_map.size(); ++i){
+        target_map += vec_target_map[i];
+    }
+    target_map = target_map / vec_target_map.size();
+    // target_map[0] = msg->position.x;
+    // target_map[1] = msg->position.y;
+    // target_map[2] = msg->position.z;
     order_hflrb = 5;
+    // tf2_ros::TransformBroadcaster br;
+    // geometry_msgs::TransformStamped transform;
+    // transform.header.stamp = ros::Time::now();
+    // transform.header.frame_id = "odom";
+    // transform.child_frame_id = "target";
+    // transform.transform.translation.x = target_map[0];
+    // transform.transform.translation.y = target_map[1];
+    // transform.transform.translation.z = target_map[2];
+    // transform.transform.rotation.w = 1;
+    // br.sendTransform(transform);
+    cout<<"get odom target:"<<tmptarmap[0]<<", "<<tmptarmap[1]<<"; smoothed odom target: "<<target_map[0]<<", "<<target_map[1]<<endl;
 }

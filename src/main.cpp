@@ -9,7 +9,7 @@ int main(int argc, char** argv){
     ros::NodeHandle nh;
     SEPlanner sepl(nh);
     ros::Rate loop(20);
-    ROS_INFO("[SEPLANNER]SEPlanner start!");
+    ROS_INFO("[SEPLANNER]SEPlanner start running!");
     while (ros::ok()){
         sepl.orderandGo();
         ros::spinOnce();

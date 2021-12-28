@@ -4,7 +4,7 @@
   <rosparam command="load" file="$(find sele_path_planner)/param/params_gazebo.yaml"/>
   <node name="sele_planner" pkg="sele_path_planner" type="se_planner_node" output="screen">
     <remap from="semantic_map" to="semantic_map"/>
-    <remap from="elevation_map" to="elevation_mapping/elevation_map_raw"/>
+    <remap from="elevation_map" to="elevation_mapping/elevation_map"/>
     <remap from="RosAria/cmd_vel" to="sim_p3at/cmd_vel"/>
   </node>
   <!--node name="joynode" pkg="joy" type="joy_node"/-->
