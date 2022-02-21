@@ -9,11 +9,6 @@ SEPlanner::SEPlanner(ros::NodeHandle &_n):nh(_n)
     reset();
     readParam();
     initSubPub();
-//    for(int i_rad=0; i_rad<n_directions; ++i_rad){
-//        for(int step=0; step<dwa_total_steps; ++step){
-//            ROS_INFO("(%f,%f)",dwa_path_points[i_rad][step][0],dwa_path_points[i_rad][step][1]);
-//        }
-//    }
 }
 
 SEPlanner::~SEPlanner(){
@@ -28,8 +23,7 @@ void SEPlanner::orderandGo(){
 //        cout<<"movebyhand:"<<movecmd[0]<<","<<movecmd[1]<<endl;
         rob_ctrl.move(movecmd[0], movecmd[1]);
     }
-    // if(lock_moving)
-    //     return;
+
     if(fromOrderToTarget(order_hflrb, target_pos)){
         double vx = 0., rz = 0.;
         if(turnback_cnt > 0){
@@ -214,20 +208,11 @@ bool SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
         //draw dwa
         if(showdwa){
             int startpr = 299, startpc, endpr, endpc;
-//            startpc = 550 - i_rad * 500 / n_directions;
-//            endpc = startpc - 350 / n_directions;
-//            endpr = startpr - 200 * (score + 5) / (5);
-//            cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(3,2,250), 2);
             startpc = 550 - i_rad * 500 / n_directions;
             endpc = startpc - 350 / n_directions;
             endpr = startpr - 200 * (step) / (dwa_total_steps);
             cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(230,2,250), 3);
         }
-//        if(highest_score < score){
-//            highest_score = score;
-//            best_i_rad = i_rad;
-//            best_i_step = step;
-//        }
     }
     //smooth score to choose better path
     // ROS_INFO("smooth score and choose best path");
@@ -256,7 +241,6 @@ bool SEPlanner::simpleDWA(Eigen::Vector3d target, double& vx, double& rz){
             endpr = startpr - 200 * (after_fuse_vec[i_rad] - lowest_score_b) / (highest_score_b - lowest_score_b);
             cv::rectangle(dwa_img, cv::Point(startpc,startpr), cv::Point(endpc,endpr), cv::Scalar(123,222,0), -1);
         }
-        // cout<<"1111"<<endl;
     }
 
     // calculate vx rz with best turn_rad
@@ -337,9 +321,6 @@ int SEPlanner::scorePosiblePath(double& score, Eigen::Vector3d target, geometry_
         fake_step = step;
     }
     //cal final reward about getting close to target
-//    Eigen::Vector3d tar_mapframe;
-//    tf2::doTransform(target, tar_mapframe, transformStamped);
-//    double dist = sqrt(pow(tar_mapframe[0]-last_pos[0],2) + pow(tar_mapframe[1]-last_pos[1],2));
     --step;
     --fake_step;
     // ROS_INFO("localframe tar(%f,%f), end(%f,%f)(%i,%i)",target[0], target[1], dwa_path_points[i_rad][step][0],dwa_path_points[i_rad][step][1],i_rad,step);
@@ -542,22 +523,7 @@ void SEPlanner::calCmd(double& vx, double& rz, double rad, double gol){
     vx = lastvx + delvx;
     rz = lastrz + delrz;
     //cout<<"vx:"<<vx<<" rz:"<<rz<<" gol:"<<gol<<" rad:"<<rad<<", delvx:"<<delvx<<", delrz:"<<delrz<<", minstepvx:"<<minstepstovx<<", minsteprz:"<<minstepstorz<<endl;
-    // if(vx > lastvx + 0.1){
-    //     vx = lastvx + 0.1;
-    // }
-    // else if(vx < lastvx - 0.1){
-    //     vx = lastvx - 0.1;
-    // }
-    // if(rz > lastrz + 0.1){
-    //     rz = lastrz + 0.1;
-    // }
-    // else if(rz < lastrz - 0.1){
-    //     rz = lastrz - 0.1;
-    // }
-    // if(vx < 0){
-    //     vx = 0;
-    //     rz = 0;
-    // }
+
     lastvx = vx;
     lastrz = rz;
 }
@@ -655,18 +621,7 @@ void SEPlanner::targetCB(const geometry_msgs::PoseConstPtr &msg){
     pos_base[1] = msg->position.y;
     pos_base[2] = msg->position.z;
     tf2::doTransform(pos_base, target_map, transformStamped);
-//    transformStamped.transform.translation.x = pos_map[0];
-//    transformStamped.transform.translation.y = pos_map[1];
-//    transformStamped.transform.translation.z = pos_map[2];
-//    transformStamped.child_frame_id = target_frame;
-//    tfBroadcaster.sendTransform(transformStamped);
     order_hflrb = 5;
-    // tf2_ros::TransformBroadcaster br;
-    // geometry_msgs::TransformStamped transform;
-    // transform.header.stamp = ros::Time::now();
-    // transform.header.frame_id = "odom";
-    // transform.child_frame_id = "target";
-    // br.sendTransform(transform);
 }
 
 void SEPlanner::targetodomCB(const geometry_msgs::PoseConstPtr &msg){
@@ -677,7 +632,7 @@ void SEPlanner::targetodomCB(const geometry_msgs::PoseConstPtr &msg){
     else{
         // judge whether the same as the last one
         Eigen::Vector3d dellastthis = tmptarmap - vec_target_map[vec_target_map.size()-1];
-        if(dellastthis.norm() > 0.05){
+        if(dellastthis.norm() > 0.0){
             // add this to vector
             vec_target_map.push_back(tmptarmap);
             if(vec_target_map.size() > 3){
@@ -691,19 +646,6 @@ void SEPlanner::targetodomCB(const geometry_msgs::PoseConstPtr &msg){
         target_map += vec_target_map[i];
     }
     target_map = target_map / vec_target_map.size();
-    // target_map[0] = msg->position.x;
-    // target_map[1] = msg->position.y;
-    // target_map[2] = msg->position.z;
     order_hflrb = 5;
-    // tf2_ros::TransformBroadcaster br;
-    // geometry_msgs::TransformStamped transform;
-    // transform.header.stamp = ros::Time::now();
-    // transform.header.frame_id = "odom";
-    // transform.child_frame_id = "target";
-    // transform.transform.translation.x = target_map[0];
-    // transform.transform.translation.y = target_map[1];
-    // transform.transform.translation.z = target_map[2];
-    // transform.transform.rotation.w = 1;
-    // br.sendTransform(transform);
     cout<<"get odom target:"<<tmptarmap[0]<<", "<<tmptarmap[1]<<"; smoothed odom target: "<<target_map[0]<<", "<<target_map[1]<<endl;
 }

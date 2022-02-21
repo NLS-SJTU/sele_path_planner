@@ -6,6 +6,7 @@
     <remap from="semantic_map" to="semantic_map"/>
     <remap from="elevation_map" to="elevation_mapping/elevation_map"/>
     <remap from="RosAria/cmd_vel" to="sim_p3at/cmd_vel"/>
+    <remap from="targetP" to="ai_robot/findpath/targetP"/>
   </node>
   <!--node name="joynode" pkg="joy" type="joy_node"/-->
 </launch>
