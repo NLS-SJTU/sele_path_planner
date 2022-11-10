@@ -20,6 +20,7 @@ path planner for semantic-elevation map
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_eigen/tf2_eigen.h>
 #include <std_msgs/Int16.h>
+#include <std_msgs/Bool.h>
 #include <nav_msgs/Path.h>
 #include <sensor_msgs/Joy.h>
 #include <geometry_msgs/PointStamped.h>
@@ -46,7 +47,7 @@ public:
 private:
     ros::NodeHandle nh;
     ros::Subscriber semap_sub, elemap_sub, order_sub, joy_sub, target_sub, targetodom_sub;
-    ros::Publisher path_pub, crossingtype_pub;
+    ros::Publisher path_pub, crossingtype_pub, totarget_pub;
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener;
     tf2_ros::TransformBroadcaster tfBroadcaster;
@@ -67,7 +68,7 @@ private:
     //params
     double max_turn_radius, resolution_turn_radius, Dheight, height_factor,
         MAX_VX, MAX_RZ, resolution_step, dist_discount, step_discount, robot_radius, unknowgrid_factor;
-    int dwa_total_steps, n_directions;
+    int dwa_total_steps, n_directions, num_stored_target;
     vector<double> type_factor;
     string map_frame, base_frame, target_frame;
     bool showdwa, lock_moving;

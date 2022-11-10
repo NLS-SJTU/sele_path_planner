@@ -92,6 +92,7 @@ void SEPlanner::readParam(){
     nh.param("seleplanner/showdwa", showdwa, true);
     nh.param("seleplanner/robot_radius", robot_radius, 0.35);
     nh.param("seleplanner/unknowgrid_factor", unknowgrid_factor, 0.9);
+    nh.param("seleplanner/num_stored_target", num_stored_target, 1);
     resolution_turn_radius = 2 * max_turn_radius / (n_directions - 1);
     //prepare points for dwa
     Eigen::Vector2d tmpP;
@@ -127,6 +128,7 @@ void SEPlanner::initSubPub(){
     targetodom_sub = nh.subscribe("/targetP_odom", 1, &SEPlanner::targetodomCB, this);
     path_pub = nh.advertise<nav_msgs::Path>("/dwa_path", 1);
     crossingtype_pub = nh.advertise<std_msgs::Int16>("/crossing_type", 1);
+    totarget_pub = nh.advertise<std_msgs::Bool>("/totarget", 1);
 }
 
 bool SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
@@ -171,6 +173,8 @@ bool SEPlanner::fromOrderToTarget(int order, Eigen::Vector3d &target){
 //        cout<<target<<";\n";
         if( (pow(target[0],2) + pow(target[1],2)) < 0.09){  // target^2 < dist^2
             ROS_INFO("[SEPLANNER]to target...");
+            std_msgs::Bool msg;
+            totarget_pub.publish(msg);
             reset();
             return false; //to target
         }
@@ -635,7 +639,7 @@ void SEPlanner::targetodomCB(const geometry_msgs::PoseConstPtr &msg){
         if(dellastthis.norm() > 0.0){
             // add this to vector
             vec_target_map.push_back(tmptarmap);
-            if(vec_target_map.size() > 3){
+            if(vec_target_map.size() > num_stored_target){
                 // only store last 5
                 vec_target_map.erase(vec_target_map.begin());
             }
